@@ -76,7 +76,7 @@ def get_orchestrator_votes(fromBlock, toBlock, pollAddress):
                     f"Proposal: {title}\n" \
                     f"Vote: {choice} - for {round(votes):,} LPT\n" \
                     f"Please check https://explorer.livepeer.org/voting/{w3.toChecksumAddress(pollAddress)} for more information!\n" \
-                    "If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
+                    f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
                     f"[Transaction link](https://etherscan.io/tx/{tx})"
             send_message(message, "@LivepeerGovernance")
             time.sleep(1)
