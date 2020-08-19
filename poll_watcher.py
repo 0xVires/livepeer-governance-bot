@@ -47,11 +47,11 @@ def check_pollCreation(fromBlock, toBlock):
         write_poll_to_json(pollAddress, endBlock, ipfs, title)           
         message = f"New poll created at block {blockNumber}: {title}!\n\n" \
                 f"Abstract: {abstract}\n\n" \
-                f"Please check https://explorer.livepeer.org/voting/{w3.toChecksumAddress(pollAddress)} for more information and to vote!\n\n" \
+                f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information and to vote!\n\n" \
                 f"[Transaction link](https://etherscan.io/tx/{tx})"
         send_message(message, "@LivepeerGovernance")
 
-def get_orchestrator_votes(fromBlock, toBlock, pollAddress):
+def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
     """Checks for votes of existing polls between fromBlock and toBlock.
     If an event exists, check if the caller is an orchestrator. Append to the json and notify.
     """
@@ -73,9 +73,9 @@ def get_orchestrator_votes(fromBlock, toBlock, pollAddress):
                 choice = "No"
             tx = event["transactionHash"].hex()
             message = f"Orchestrator [{caller[:8]}](https://explorer.livepeer.org/accounts/{caller}/campaign) voted!\n\n" \
-                    f"Proposal: {title}\n" \
-                    f"Vote: {choice} - for {round(votes):,} LPT\n" \
-                    f"Please check https://explorer.livepeer.org/voting/{w3.toChecksumAddress(pollAddress)} for more information!\n" \
+                    f"Proposal: {pollTitle}\n" \
+                    f"Vote: {choice} - for {round(votes):,} LPT\n\n" \
+                    f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information!\n" \
                     f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
                     f"[Transaction link](https://etherscan.io/tx/{tx})"
             send_message(message, "@LivepeerGovernance")
@@ -93,7 +93,7 @@ def get_totalActiveStake():
     activeStake = round(int(r.json()["data"]["protocols"][0]["totalActiveStake"])/10**18)
     return activeStake
 
-def get_final_tally(poll):
+def get_final_tally(poll, pollTitle):
     """Gets the tally of a poll from the subgraph.
     """
     GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
@@ -110,8 +110,8 @@ def get_final_tally(poll):
     votes_n = round(int(votes["no"])/10**18)
     votes_t = votes_y + votes_n
     activeStake = get_totalActiveStake()
-    message = f"The following poll has ended: [{title}](https://explorer.livepeer.org/voting/{poll})\n" \
-              f"Result:\n"
+    message = f"The following poll has ended: [{pollTitle}](https://explorer.livepeer.org/voting/{poll})\n" \
+              f"Result:\n" \
               f"```\n" \
               f"{'Yes:':>4} {str(round(votes_y/votes_t*100,2))+'%':>5} {votes_y:>10,} LPT\n" \
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
@@ -121,7 +121,7 @@ def get_final_tally(poll):
 
 # Telegram - send message
 def send_message(text, chat_id):
-    sendURL = TEL_URL + "sendMessage?text={}&chat_id={}&parse_mode=MarkdownV2&disable_web_page_preview=True".format(text, chat_id)
+    sendURL = TEL_URL + "sendMessage?text={}&chat_id={}&parse_mode=Markdown&disable_web_page_preview=True".format(text, chat_id)
     try:
         requests.get(sendURL)
     except Exception as ex:
@@ -131,7 +131,7 @@ def main():
     # Read previous blocknumber and get new blocknumber (-5)
     # If there is no entry in the txt file, get current blocknumber - 50 (~10min ago)
     with open('block_record.txt', 'r') as fh:
-    blockOld = fh.readlines()
+        blockOld = fh.readlines()
     if not blockOld:
         blockOld = w3.eth.blockNumber - 50
     else:
@@ -145,10 +145,10 @@ def main():
             polls = json.load(f)
         for poll in polls.copy():
             title = polls[poll]["title"]
-            get_orchestrator_votes(blockOld, block, w3.toChecksumAddress(poll))
+            get_orchestrator_votes(blockOld, block, polls, w3.toChecksumAddress(poll), title)
             # If a poll has ended, get final tally & remove from json
             if block >= polls[poll]["endBlock"]:
-                get_final_tally(poll)
+                get_final_tally(poll, title)
                 del polls[poll]
         with open("active_polls.json", "w") as f:
             json.dump(polls, f, indent=1)
