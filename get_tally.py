@@ -1,6 +1,7 @@
 import requests
 import json
-from config_private import TEL_URL
+from config_private import TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
+from discord import Webhook, RequestsWebhookAdapter
 
 def get_totalActiveStake():
     GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
@@ -14,7 +15,7 @@ def get_totalActiveStake():
     activeStake = round(int(r.json()["data"]["protocols"][0]["totalActiveStake"])/10**18)
     return activeStake
 
-def get_tally(poll):
+def get_tally(poll, title):
     GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
 
     query = """query {
@@ -37,19 +38,30 @@ def get_tally(poll):
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
               f"Participation: {round(votes_t/activeStake*100,2)}%\n" \
               f"```"
-    send_message(message, "@LivepeerGovernance")
+    return message
 
 # Telegram - send message
-def send_message(text, chat_id):
+def send_telegram(text, chat_id):
     sendURL = TEL_URL + "sendMessage?text={}&chat_id={}&parse_mode=MarkdownV2&disable_web_page_preview=True".format(text, chat_id)
     try:
         requests.get(sendURL)
     except Exception as ex:
         print(ex)
 
+# Discord - send message to predefined channel
+def send_discord(text):
+    webhook = Webhook.partial(WEB_HOOK_ID, WEB_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
+    try:
+        webhook.send(text)
+    except Exception as ex:
+        print(ex)
+
 # run every ~18 hours
-with open("active_polls.json", "r") as f:
-    polls = json.load(f)
-for poll in polls.copy():
-    title = polls[poll]["title"]
-    get_tally(poll)
+if __name__ == "__main__":
+    with open("active_polls.json", "r") as f:
+        polls = json.load(f)
+    for poll in polls.copy():
+        title = polls[poll]["title"]
+        message = get_tally(poll, title)
+        send_telegram(message, "@LivepeerGovernance")
+        send_discord(message)

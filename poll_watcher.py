@@ -2,7 +2,7 @@ import json
 import requests
 import time
 from web3 import Web3
-from config_private import TEL_URL
+from config_private import TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
 from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
 
 WS_LOCAL = "ws://localhost:8546"
@@ -49,7 +49,8 @@ def check_pollCreation(fromBlock, toBlock):
                 f"Abstract: {abstract}\n\n" \
                 f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information and to vote!\n\n" \
                 f"[Transaction link](https://etherscan.io/tx/{tx})"
-        send_message(message, "@LivepeerGovernance")
+        send_telegram(message, "@LivepeerGovernance")
+        send_discord(message)
 
 def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
     """Checks for votes of existing polls between fromBlock and toBlock.
@@ -78,7 +79,8 @@ def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
                     f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information!\n" \
                     f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
                     f"[Transaction link](https://etherscan.io/tx/{tx})"
-            send_message(message, "@LivepeerGovernance")
+            send_telegram(message, "@LivepeerGovernance")
+            send_discord(message)
             time.sleep(1)
 
 def get_totalActiveStake():
@@ -117,13 +119,22 @@ def get_final_tally(poll, pollTitle):
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
               f"Participation: {round(votes_t/activeStake*100,2)}%\n" \
               f"```"
-    send_message(message, "@LivepeerGovernance")
+    send_telegram(message, "@LivepeerGovernance")
+    send_discord(message)
 
 # Telegram - send message
-def send_message(text, chat_id):
+def send_telegram(text, chat_id):
     sendURL = TEL_URL + "sendMessage?text={}&chat_id={}&parse_mode=Markdown&disable_web_page_preview=True".format(text, chat_id)
     try:
         requests.get(sendURL)
+    except Exception as ex:
+        print(ex)
+
+# Discord - send message to predefined channel
+def send_discord(text):
+    webhook = Webhook.partial(WEB_HOOK_ID, WEB_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
+    try:
+        webhook.send(text)
     except Exception as ex:
         print(ex)
 
