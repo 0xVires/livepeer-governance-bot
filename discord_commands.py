@@ -19,9 +19,7 @@ async def on_message(message):
             with open("active_polls.json", "r") as f:
                 polls = json.load(f)
             for poll in polls.copy():
-                title = polls[poll]["title"]
-                numberVoted = len(polls[poll]["voted"])
-                text = get_tally(poll, title, numberVoted)
+                text = get_tally(poll)
                 await message.channel.send(text)
 
 client.run(DISCORD_TOKEN)
