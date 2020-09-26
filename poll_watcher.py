@@ -4,6 +4,7 @@ import time
 from web3 import Web3
 from config_private import TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
 from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
+from discord import Webhook, RequestsWebhookAdapter
 
 WS_LOCAL = "ws://localhost:8546"
 w3 = Web3(Web3.WebsocketProvider(WS_LOCAL))
@@ -132,7 +133,7 @@ def send_telegram(text, chat_id):
 
 # Discord - send message to predefined channel
 def send_discord(text):
-    webhook = Webhook.partial(WEB_HOOK_ID, WEB_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
+    webhook = Webhook.partial(DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
     try:
         webhook.send(text)
     except Exception as ex:
