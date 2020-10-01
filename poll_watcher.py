@@ -45,7 +45,7 @@ def check_pollCreation(fromBlock, toBlock):
         tx = event["transactionHash"].hex()
         ipfs = w3.toText(hexstr=event["data"][2:][320:]).rstrip("\x00")
         title, abstract = get_poll_title_and_abstract(ipfs)
-        write_poll_to_json(pollAddress, endBlock, ipfs, title)           
+        write_poll_to_json(pollAddress, endBlock, ipfs, title)
         message = f"New poll created at block {blockNumber}: {title}!\n\n" \
                 f"Abstract: {abstract}\n\n" \
                 f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information and to vote!\n\n" \
@@ -67,7 +67,7 @@ def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
         caller = w3.toChecksumAddress("0x" + event["topics"][1].hex()[26:])
         if bonding_manager_proxy.functions.isRegisteredTranscoder(caller).call():
             # add orchestrator to "voted" in json
-            polls[pollAddress.lower()]["voted"].append(caller)            
+            polls[pollAddress.lower()]["voted"].append(caller)
             votes = bonding_manager_proxy.functions.transcoderTotalStake(caller).call()/10**18
             if event["data"][-1] == "0":
                 choice = "Yes"
@@ -96,7 +96,22 @@ def get_totalActiveStake():
     activeStake = round(int(r.json()["data"]["protocols"][0]["totalActiveStake"])/10**18)
     return activeStake
 
-def get_final_tally(poll, pollTitle):
+def get_transcoders_with_stake(minStake):
+    """Gets a list of transcoders with the chosen minimum stake from the subgraph.
+    """
+    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
+    query = """query {
+      transcoders(orderBy: totalStake, orderDirection: desc, where: {active: true, totalStake_gt: "%s"}) {
+        id
+        totalStake
+      }
+    }
+    """%(minStake)
+    
+    r = requests.post(GRAPH_URL, json={'query': query})
+    return r.json()["data"]["transcoders"]
+
+def get_final_tally(polls, poll, pollTitle):
     """Gets the tally of a poll from the subgraph.
     """
     GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
@@ -113,13 +128,25 @@ def get_final_tally(poll, pollTitle):
     votes_n = round(int(votes["no"])/10**18)
     votes_t = votes_y + votes_n
     activeStake = get_totalActiveStake()
+    # Get list of transcoders with at least 100k LPT staked
+    transcoders_min = [t["id"] for t in get_transcoders_with_stake(100000000000000000000000)]
+    voted = [t.lower() for t in polls[poll]["voted"]]
+    numberVoted = len(voted)
+    not_voted = "\n".join([t for t in transcoders_min if t not in voted])
+
     message = f"The following poll has ended: [{pollTitle}](https://explorer.livepeer.org/voting/{poll})\n" \
               f"Result:\n" \
               f"```\n" \
               f"{'Yes:':>4} {str(round(votes_y/votes_t*100,2))+'%':>5} {votes_y:>10,} LPT\n" \
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
               f"Participation: {round(votes_t/activeStake*100,2)}%\n" \
+              f"{numberVoted} Orchestrators voted\n" \
+              f"```\n" \
+              f"Those major Orchestrators did NOT VOTE:\n" \
+              f"```\n" \
+              f"{not_voted}\n" \
               f"```"
+
     send_telegram(message, "@LivepeerGovernance")
     send_discord(message)
 
@@ -160,7 +187,7 @@ def main():
             get_orchestrator_votes(blockOld, block, polls, w3.toChecksumAddress(poll), title)
             # If a poll has ended, get final tally & remove from json
             if block >= polls[poll]["endBlock"]:
-                get_final_tally(poll, title)
+                get_final_tally(polls, poll, title)
                 del polls[poll]
         with open("active_polls.json", "w") as f:
             json.dump(polls, f, indent=1)
