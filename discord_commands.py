@@ -1,7 +1,11 @@
 import discord
 import json
-from config_private import DISCORD_TOKEN
+from web3 import Web3
+from config_private import DISCORD_TOKEN, GETH_IPC_PATH
+from config_public import MINTER, LPT, LPT_ABI
 from get_tally import get_totalStake, get_tally
+
+w3 = Web3(Web3.IPCProvider(GETH_IPC_PATH))
 
 client = discord.Client()
 
