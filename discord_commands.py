@@ -1,7 +1,7 @@
 import discord
 import json
 from config_private import DISCORD_TOKEN
-from get_tally import get_totalActiveStake, get_tally
+from get_tally import get_totalStake, get_tally
 
 client = discord.Client()
 
@@ -15,9 +15,11 @@ async def on_message(message):
         return
 
     if message.content.startswith('!tally'):
-        if message.channel.name == "something":
-            with open("active_polls.json", "r") as f:
-                polls = json.load(f)
+        with open("active_polls.json", "r") as f:
+            polls = json.load(f)
+        if not polls:
+            await message.channel.send("There are currently no active polls!")
+        else:
             for poll in polls.copy():
                 text = get_tally(poll)
                 await message.channel.send(text)

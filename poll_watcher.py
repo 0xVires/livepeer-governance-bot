@@ -2,12 +2,11 @@ import json
 import requests
 import time
 from web3 import Web3
-from config_private import TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
-from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
+from config_private import GETH_IPC_PATH, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
+from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, MINTER, LPT, LPT_ABI, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
 from discord import Webhook, RequestsWebhookAdapter
 
-WS_LOCAL = "ws://localhost:8546"
-w3 = Web3(Web3.WebsocketProvider(WS_LOCAL))
+w3 = Web3(Web3.IPCProvider(GETH_IPC_PATH))
 
 bonding_manager_proxy = w3.eth.contract(address=BONDING_MANAGER_PROXY, abi=json.loads(BONDING_MANAGER_ABI))
 
@@ -84,17 +83,10 @@ def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
             send_discord(message)
             time.sleep(1)
 
-def get_totalActiveStake():
-    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
-
-    query = """query {
-     protocols {
-        totalActiveStake
-      }
-    }"""
-    r = requests.post(GRAPH_URL, json={'query': query})
-    activeStake = round(int(r.json()["data"]["protocols"][0]["totalActiveStake"])/10**18)
-    return activeStake
+def get_totalStake():
+    LP_token = w3.eth.contract(address=LPT, abi=LPT_ABI)
+    totalStake = round(int(LP_token.functions.balanceOf(MINTER).call()/10**18))
+    return totalStake
 
 def get_transcoders_with_stake(minStake):
     """Gets a list of transcoders with the chosen minimum stake from the subgraph.
@@ -127,7 +119,7 @@ def get_final_tally(polls, poll, pollTitle):
     votes_y = round(int(votes["yes"])/10**18)
     votes_n = round(int(votes["no"])/10**18)
     votes_t = votes_y + votes_n
-    activeStake = get_totalActiveStake()
+    totalStake = get_totalStake()
     # Get list of transcoders with at least 100k LPT staked
     transcoders_min = [t["id"] for t in get_transcoders_with_stake(100000000000000000000000)]
     voted = [t.lower() for t in polls[poll]["voted"]]
@@ -139,7 +131,7 @@ def get_final_tally(polls, poll, pollTitle):
               f"```\n" \
               f"{'Yes:':>4} {str(round(votes_y/votes_t*100,2))+'%':>5} {votes_y:>10,} LPT\n" \
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
-              f"Participation: {round(votes_t/activeStake*100,2)}%\n" \
+              f"Participation: {round(votes_t/totalStake*100,2)}%\n" \
               f"{numberVoted} Orchestrators voted\n" \
               f"```\n" \
               f"Those major Orchestrators did NOT VOTE:\n" \

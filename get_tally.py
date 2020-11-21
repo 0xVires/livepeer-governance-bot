@@ -1,20 +1,18 @@
 import requests
 import json
 import datetime
-from config_private import TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
+from web3 import Web3
+from config_private import GETH_IPC_PATH, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
+from config_public import MINTER, LPT, LPT_ABI
 from discord import Webhook, RequestsWebhookAdapter
+from poll_watcher import get_totalStake
 
-def get_totalActiveStake():
-    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
+w3 = Web3(Web3.IPCProvider(GETH_IPC_PATH))
 
-    query = """query {
-     protocols {
-        totalActiveStake
-      }
-    }"""
-    r = requests.post(GRAPH_URL, json={'query': query})
-    activeStake = round(int(r.json()["data"]["protocols"][0]["totalActiveStake"])/10**18)
-    return activeStake
+def get_totalStake():
+    LP_token = w3.eth.contract(address=LPT, abi=LPT_ABI)
+    totalStake = round(int(LP_token.functions.balanceOf(MINTER).call()/10**18))
+    return totalStake
 
 def get_countdown(endBlock):
     ETHERSCAN_API = f"https://api.etherscan.io/api?module=block&action=getblockcountdown&blockno={endBlock}&apikey={ETHERSCAN_KEY}"
@@ -38,7 +36,7 @@ def get_tally(poll):
     votes_y = round(int(votes["yes"])/10**18)
     votes_n = round(int(votes["no"])/10**18)
     votes_t = votes_y + votes_n
-    activeStake = get_totalActiveStake()
+    totalStake = get_totalStake()
     with open("active_polls.json", "r") as f:
         polls = json.load(f)
     title = polls[poll]["title"]
@@ -49,7 +47,7 @@ def get_tally(poll):
               f"```\n" \
               f"{'Yes:':>4} {str(round(votes_y/votes_t*100,2))+'%':>5} {votes_y:>10,} LPT\n" \
               f"{'No:':>4}  {str(round(votes_n/votes_t*100,2))+'%':>5} {votes_n:>10,} LPT\n\n" \
-              f"Participation: {round(votes_t/activeStake*100,2)}%\n" \
+              f"Participation: {round(votes_t/totalStake*100,2)}%\n" \
               f"{numberVoted} Orchestrators voted\n\n" \
               f"Poll ends in approx. {countdown}!\n" \
               f"```"
