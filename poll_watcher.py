@@ -66,22 +66,23 @@ def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
         caller = w3.toChecksumAddress("0x" + event["topics"][1].hex()[26:])
         if bonding_manager_proxy.functions.isRegisteredTranscoder(caller).call():
             # add orchestrator to "voted" in json
-            polls[pollAddress.lower()]["voted"].append(caller)
-            votes = bonding_manager_proxy.functions.transcoderTotalStake(caller).call()/10**18
-            if event["data"][-1] == "0":
-                choice = "Yes"
-            elif event["data"][-1] == "1":
-                choice = "No"
-            tx = event["transactionHash"].hex()
-            message = f"Orchestrator [{caller[:8]}](https://explorer.livepeer.org/accounts/{caller}/campaign) voted!\n\n" \
-                    f"Proposal: {pollTitle}\n" \
-                    f"Vote: {choice} - for {round(votes):,} LPT\n\n" \
-                    f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information!\n" \
-                    f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
-                    f"[Transaction link](https://etherscan.io/tx/{tx})"
-            send_telegram(message, "@LivepeerGovernance")
-            send_discord(message)
-            time.sleep(1)
+            if not caller in polls[pollAddress.lower()]["voted"]:
+                polls[pollAddress.lower()]["voted"].append(caller)
+                votes = bonding_manager_proxy.functions.transcoderTotalStake(caller).call()/10**18
+                if event["data"][-1] == "0":
+                    choice = "Yes"
+                elif event["data"][-1] == "1":
+                    choice = "No"
+                tx = event["transactionHash"].hex()
+                message = f"Orchestrator [{caller[:8]}](https://explorer.livepeer.org/accounts/{caller}/campaign) voted!\n\n" \
+                        f"Proposal: {pollTitle}\n" \
+                        f"Vote: {choice} - for {round(votes):,} LPT\n\n" \
+                        f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information!\n" \
+                        f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
+                        f"[Transaction link](https://etherscan.io/tx/{tx})"
+                send_telegram(message, "@LivepeerGovernance")
+                send_discord(message)
+                time.sleep(1)
 
 def get_totalStake():
     LP_token = w3.eth.contract(address=LPT, abi=LPT_ABI)
