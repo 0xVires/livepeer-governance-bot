@@ -117,8 +117,8 @@ def get_final_tally(polls, poll, pollTitle):
     """%(poll)
     r = requests.post(GRAPH_URL, json={'query': query})
     votes = r.json()["data"]["pollTallies"][0]
-    votes_y = round(int(votes["yes"])/10**18)
-    votes_n = round(int(votes["no"])/10**18)
+    votes_y = round(int(votes["yes"]))
+    votes_n = round(int(votes["no"]))
     votes_t = votes_y + votes_n
     totalStake = get_totalStake()
     # Get list of transcoders with at least 100k LPT staked
