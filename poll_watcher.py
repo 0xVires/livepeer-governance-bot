@@ -4,7 +4,7 @@ import time
 from web3 import Web3
 from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
 from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
-from discord import Webhook, RequestsWebhookAdapter
+from discord import SyncWebhook
 
 w3 = Web3(Web3.WebsocketProvider(WS_ARBITRUM))
 w3m = Web3(Web3.WebsocketProvider(WS_MAINNET_INFURA))
@@ -154,7 +154,7 @@ def send_telegram(text, chat_id):
 
 # Discord - send message to predefined channel
 def send_discord(text):
-    webhook = Webhook.partial(DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
+    webhook = SyncWebhook.partial(DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN)
     try:
         webhook.send(text)
     except Exception as ex:
@@ -163,7 +163,7 @@ def send_discord(text):
 def main():
     # Read previous blocknumber and get new blocknumber
     with open('arbitrum_block_records.txt', 'r') as fh:
-        arbitrumBlockOld = int(fh.readlines())
+        arbitrumBlockOld = int(fh.readlines()[0])
     arbitrumBlock = w3.eth.blockNumber
     try:
         check_pollCreation(arbitrumBlockOld, arbitrumblock)

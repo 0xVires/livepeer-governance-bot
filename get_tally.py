@@ -4,7 +4,7 @@ import datetime
 from web3 import Web3
 from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
 from config_public import BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
-from discord import Webhook, RequestsWebhookAdapter
+from discord import SyncWebhook
 from poll_watcher import get_totalStake
 
 w3 = Web3(Web3.WebsocketProvider(WS_ARBITRUM))
@@ -65,7 +65,7 @@ def send_telegram(text, chat_id):
 
 # Discord - send message to predefined channel
 def send_discord(text):
-    webhook = Webhook.partial(DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, adapter=RequestsWebhookAdapter())
+    webhook = SyncWebhook.partial(DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN)
     try:
         webhook.send(text)
     except Exception as ex:

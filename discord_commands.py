@@ -4,7 +4,9 @@ from web3 import Web3
 from config_private import DISCORD_TOKEN
 from get_tally import get_totalStake, get_tally
 
-client = discord.Client()
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
