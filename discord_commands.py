@@ -2,7 +2,6 @@ import discord
 import json
 from web3 import Web3
 from config_private import DISCORD_TOKEN
-from config_public import MINTER, LPT, LPT_ABI
 from get_tally import get_totalStake, get_tally
 
 client = discord.Client()
