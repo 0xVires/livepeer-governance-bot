@@ -2,11 +2,12 @@ import json
 import requests
 import time
 from web3 import Web3
-from config_private import GETH_IPC_PATH, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
-from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, MINTER, LPT, LPT_ABI, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
+from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
+from config_public import LP_POLL_CREATOR, POLL_CREATION_TOPIC, BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
 from discord import Webhook, RequestsWebhookAdapter
 
-w3 = Web3(Web3.IPCProvider(GETH_IPC_PATH))
+w3 = Web3(Web3.WebsocketProvider(WS_ARBITRUM))
+w3m = Web3(Web3.WebsocketProvider(WS_MAINNET_INFURA))
 
 bonding_manager_proxy = w3.eth.contract(address=BONDING_MANAGER_PROXY, abi=json.loads(BONDING_MANAGER_ABI))
 
@@ -22,7 +23,7 @@ def write_poll_to_json(pollAddress, endBlock, ipfs, title):
         json.dump(polls, f, indent=1)
 
 def get_poll_title_and_abstract(ipfs):
-    r = requests.get(f"https://ipfs.infura.io:5001/api/v0/cat/{ipfs}")
+    r = requests.get(f"https://ipfs.livepeer.studio/ipfs/{ipfs}")
     title = [s[7:] for s in r.json()["text"].split("##")[0].split("\n") if "title" in s][0]
     abstract = max(r.json()["text"].split("##")[1].split("\n"), key=len)
     return title, abstract
@@ -48,7 +49,7 @@ def check_pollCreation(fromBlock, toBlock):
         message = f"New poll created at block {blockNumber}: {title}!\n\n" \
                 f"Abstract: {abstract}\n\n" \
                 f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information and to vote!\n\n" \
-                f"[Transaction link](https://etherscan.io/tx/{tx})"
+                f"[Transaction link](https://arbiscan.io/tx/{tx})"
         send_telegram(message, "@LivepeerGovernance")
         send_discord(message)
 
@@ -79,20 +80,19 @@ def get_orchestrator_votes(fromBlock, toBlock, polls, pollAddress, pollTitle):
                         f"Vote: {choice} - for {round(votes):,} LPT\n\n" \
                         f"Please check [the Livepeer Explorer](https://explorer.livepeer.org/voting/{pollAddress}) for more information!\n" \
                         f"If you do not agree with your orchestrator's choice, you can overrule it by voting yourself.\n\n" \
-                        f"[Transaction link](https://etherscan.io/tx/{tx})"
+                        f"[Transaction link](https://arbiscan.io/tx/{tx})"
                 send_telegram(message, "@LivepeerGovernance")
                 send_discord(message)
                 time.sleep(1)
 
 def get_totalStake():
-    LP_token = w3.eth.contract(address=LPT, abi=LPT_ABI)
-    totalStake = round(int(LP_token.functions.balanceOf(MINTER).call()/10**18))
+    totalStake = round(int(bonding_manager_proxy.functions.currentRoundTotalActiveStake().call()/10**18))
     return totalStake
 
 def get_transcoders_with_stake(minStake):
     """Gets a list of transcoders with the chosen minimum stake from the subgraph.
     """
-    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
+    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/arbitrum-one'
     query = """query {
       transcoders(orderBy: totalStake, orderDirection: desc, where: {active: true, totalStake_gt: "%s"}) {
         id
@@ -107,7 +107,7 @@ def get_transcoders_with_stake(minStake):
 def get_final_tally(polls, poll, pollTitle):
     """Gets the tally of a poll from the subgraph.
     """
-    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
+    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/arbitrum-one'
     query = """query {
      pollTallies(where: {id: "%s"}) {
       yes
@@ -122,7 +122,8 @@ def get_final_tally(polls, poll, pollTitle):
     votes_t = votes_y + votes_n
     totalStake = get_totalStake()
     # Get list of transcoders with at least 100k LPT staked
-    transcoders_min = [t["id"] for t in get_transcoders_with_stake(100000000000000000000000)]
+    minStake = 100000
+    transcoders_min = [t["id"] for t in get_transcoders_with_stake(minStake)]
     voted = [t.lower() for t in polls[poll]["voted"]]
     numberVoted = len(voted)
     not_voted = "\n".join([t for t in transcoders_min if t not in voted])
@@ -135,7 +136,7 @@ def get_final_tally(polls, poll, pollTitle):
               f"Participation: {round(votes_t/totalStake*100,2)}%\n" \
               f"{numberVoted} Orchestrators voted\n" \
               f"```\n" \
-              f"Those major Orchestrators did NOT VOTE:\n" \
+              f"Those Orchestrators with over {minStake} did NOT VOTE:\n" \
               f"```\n" \
               f"{not_voted}\n" \
               f"```"
@@ -160,33 +161,28 @@ def send_discord(text):
         print(ex)
 
 def main():
-    # Read previous blocknumber and get new blocknumber (-5)
-    # If there is no entry in the txt file, get current blocknumber - 50 (~10min ago)
-    with open('block_record.txt', 'r') as fh:
-        blockOld = fh.readlines()
-    if not blockOld:
-        blockOld = w3.eth.blockNumber - 50
-    else:
-        blockOld = int(blockOld[0])
-    block = w3.eth.blockNumber - 5
-    # Check for new polls
+    # Read previous blocknumber and get new blocknumber
+    with open('arbitrum_block_records.txt', 'r') as fh:
+        arbitrumBlockOld = int(fh.readlines())
+    arbitrumBlock = w3.eth.blockNumber
     try:
-        check_pollCreation(blockOld, block)
+        check_pollCreation(arbitrumBlockOld, arbitrumblock)
         # Get orchestrator votes
         with open("active_polls.json", "r") as f:
             polls = json.load(f)
         for poll in polls.copy():
             title = polls[poll]["title"]
-            get_orchestrator_votes(blockOld, block, polls, w3.toChecksumAddress(poll), title)
+            get_orchestrator_votes(arbitrumBlockOld, arbitrumBlock, polls, w3.toChecksumAddress(poll), title)
             # If a poll has ended, get final tally & remove from json
-            if block >= polls[poll]["endBlock"]:
+            mainnetBlock =  w3m.eth.blockNumber
+            if mainnetBlock >= polls[poll]["endBlock"]:
                 get_final_tally(polls, poll, title)
                 del polls[poll]
         with open("active_polls.json", "w") as f:
             json.dump(polls, f, indent=1)
         # Write new processed blocknumber to file
-        with open('block_record.txt', 'w') as fh:
-            fh.write(str(block))
+        with open('arbitrum_block_records.txt', 'w') as fh:
+            fh.write(str(arbitrumBlock))
     except Exception as ex:
         print(ex)
 

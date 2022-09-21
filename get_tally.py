@@ -2,16 +2,18 @@ import requests
 import json
 import datetime
 from web3 import Web3
-from config_private import GETH_IPC_PATH, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
-from config_public import MINTER, LPT, LPT_ABI
+from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
+from config_public import BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
 from discord import Webhook, RequestsWebhookAdapter
 from poll_watcher import get_totalStake
 
-w3 = Web3(Web3.IPCProvider(GETH_IPC_PATH))
+w3 = Web3(Web3.WebsocketProvider(WS_ARBITRUM))
+w3m = Web3(Web3.WebsocketProvider(WS_MAINNET_INFURA))
+
+bonding_manager_proxy = w3.eth.contract(address=BONDING_MANAGER_PROXY, abi=json.loads(BONDING_MANAGER_ABI))
 
 def get_totalStake():
-    LP_token = w3.eth.contract(address=LPT, abi=LPT_ABI)
-    totalStake = round(int(LP_token.functions.balanceOf(MINTER).call()/10**18))
+    totalStake = round(int(bonding_manager_proxy.functions.currentRoundTotalActiveStake().call()/10**18))
     return totalStake
 
 def get_countdown(endBlock):
@@ -21,7 +23,7 @@ def get_countdown(endBlock):
     return str(datetime.timedelta(seconds=secs))
 
 def get_tally(poll):
-    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/livepeer'
+    GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/arbitrum-one'
 
     query = """query {
      pollTallies(where: {id: "%s"}) {
