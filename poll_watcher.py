@@ -164,9 +164,9 @@ def main():
     # Read previous blocknumber and get new blocknumber
     with open('arbitrum_block_records.txt', 'r') as fh:
         arbitrumBlockOld = int(fh.readlines()[0])
-    arbitrumBlock = w3.eth.blockNumber
+    arbitrumBlock = w3.eth.blockNumber - 5
     try:
-        check_pollCreation(arbitrumBlockOld, arbitrumblock)
+        check_pollCreation(arbitrumBlockOld, arbitrumBlock)
         # Get orchestrator votes
         with open("active_polls.json", "r") as f:
             polls = json.load(f)

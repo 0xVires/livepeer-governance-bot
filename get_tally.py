@@ -2,7 +2,7 @@ import requests
 import json
 import datetime
 from web3 import Web3
-from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN, ETHERSCAN_KEY
+from config_private import WS_ARBITRUM, WS_MAINNET_INFURA, TEL_URL, DISCORD_HOOK_ID, DISCORD_HOOK_TOKEN
 from config_public import BONDING_MANAGER_PROXY, BONDING_MANAGER_ABI
 from discord import SyncWebhook
 from poll_watcher import get_totalStake
@@ -15,12 +15,6 @@ bonding_manager_proxy = w3.eth.contract(address=BONDING_MANAGER_PROXY, abi=json.
 def get_totalStake():
     totalStake = round(int(bonding_manager_proxy.functions.currentRoundTotalActiveStake().call()/10**18))
     return totalStake
-
-def get_countdown(endBlock):
-    ETHERSCAN_API = f"https://api.etherscan.io/api?module=block&action=getblockcountdown&blockno={endBlock}&apikey={ETHERSCAN_KEY}"
-    countdown = requests.get(ETHERSCAN_API).json()
-    secs = int(countdown["result"]["EstimateTimeInSec"].split(".")[0])
-    return str(datetime.timedelta(seconds=secs))
 
 def get_tally(poll):
     GRAPH_URL = 'https://api.thegraph.com/subgraphs/name/livepeer/arbitrum-one'
@@ -44,7 +38,8 @@ def get_tally(poll):
     title = polls[poll]["title"]
     numberVoted = len(polls[poll]["voted"])
     endBlock = polls[poll]["endBlock"]
-    countdown = get_countdown(endBlock)
+    mainnetBlock =  w3m.eth.blockNumber
+    countdown = str(datetime.timedelta(seconds=(endBlock - mainnetBlock)*12)) #12s per block since the merge
     message = f"[{title}](https://explorer.livepeer.org/voting/{poll})\n" \
               f"```\n" \
               f"{'Yes:':>4} {str(round(votes_y/votes_t*100,2))+'%':>5} {votes_y:>10,} LPT\n" \
